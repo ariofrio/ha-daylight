@@ -1,0 +1,78 @@
+"""Public HA config flow, service actions, entity lifecycle, and input validation."""
+
+import pytest
+import voluptuous as vol
+from homeassistant.exceptions import ServiceValidationError
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+
+async def setup_entry(hass):
+    entry = MockConfigEntry(domain="daylight", title="Daylight", unique_id="daylight", data={})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def test_actions_return_independent_results_without_changing_sensors(hass):
+    await setup_entry(hass)
+    before = {s.entity_id: s.state for s in hass.states.async_all("sensor")}
+    a = await hass.services.async_call(
+        "daylight",
+        "from_elevation",
+        {"geometric_elevation": 20},
+        blocking=True,
+        return_response=True,
+    )
+    b = await hass.services.async_call(
+        "daylight",
+        "from_level",
+        {"daylight_level": 1, "noon_elevation": 20},
+        blocking=True,
+        return_response=True,
+    )
+    assert a["lux"] == pytest.approx(b["lux"])
+    assert a["cct_kelvin"] == pytest.approx(b["cct_kelvin"])
+    assert {s.entity_id: s.state for s in hass.states.async_all("sensor")} == before
+    with pytest.raises((ServiceValidationError, vol.Invalid)):
+        await hass.services.async_call(
+            "daylight", "from_level", {"daylight_level": 2}, blocking=True, return_response=True
+        )
+
+
+async def test_single_instance_setup_and_unload(hass):
+    entry = await setup_entry(hass)
+    states = hass.states.async_all("sensor")
+    assert len(states) == 5
+    level = next(s for s in states if s.entity_id.endswith("_level"))
+    assert 0 <= float(level.state) <= 1
+    result = await hass.config_entries.flow.async_init("daylight", context={"source": "user"})
+    assert result["type"] == "abort"
+    assert result["reason"] == "single_instance_allowed"
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert all(s.state == "unavailable" for s in hass.states.async_all("sensor"))
+
+
+async def test_config_flow_without_yaml_or_credentials(hass):
+    result = await hass.config_entries.flow.async_init("daylight", context={"source": "user"})
+    assert result["type"] == "form"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["type"] == "create_entry"
+    await hass.async_block_till_done()
+    assert len(hass.states.async_all("sensor")) == 5
+
+
+async def test_default_level_uses_todays_noon_and_rejects_boolean(hass):
+    await setup_entry(hass)
+    peak = next(
+        s for s in hass.states.async_all("sensor") if s.entity_id.endswith("_noon_solar_elevation")
+    )
+    a = await hass.services.async_call(
+        "daylight", "from_level", {"daylight_level": 1}, blocking=True, return_response=True
+    )
+    assert a["geometric_elevation"] == pytest.approx(float(peak.state))
+    with pytest.raises((ServiceValidationError, vol.Invalid)):
+        await hass.services.async_call(
+            "daylight", "from_level", {"daylight_level": True}, blocking=True, return_response=True
+        )
