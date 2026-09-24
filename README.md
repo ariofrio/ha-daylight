@@ -60,7 +60,9 @@ elevation = -18° + level × (max(-18°, noon_elevation) + 18°)
 
 A level of 0 is the dark reference, 1 is today's solar noon, and intermediate values are linear in geometric elevation—not lux or perceived brightness. In polar night when solar noon is below -18°, every level maps to the dark reference. Current level is clamped to [0, 1]. The physical lookup uses a fixed atmosphere and 1 AU solar normalization, so matching morning/evening elevations give matching results.
 
-The actions reject nonfinite or out-of-range inputs. Do not feed HA's ordinary apparent solar elevation directly into this geometric-elevation interface; use this integration's geometric sensor.
+The actions reject nonfinite or out-of-range inputs.
+
+**Geometric elevation** is the sun's position without atmospheric refraction; **apparent elevation** includes the bending of sunlight through the atmosphere. Daylight uses geometric elevation, while HA's built-in `sun.sun` reports apparent elevation. Use Daylight's geometric sensor with `from_elevation`: passing apparent elevation won't fail validation, but gives results for a shifted sun position, especially near the horizon.
 
 ## Physical model and limitations
 
