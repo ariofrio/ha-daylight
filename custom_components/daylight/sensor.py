@@ -22,6 +22,15 @@ SENSORS = (
         icon="mdi:white-balance-sunny",
     ),
     SensorEntityDescription(
+        key="melanopic_edi",
+        name="Melanopic EDI",
+        native_unit_of_measurement="lx",
+        device_class=SensorDeviceClass.ILLUMINANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        icon="mdi:weather-sunny",
+    ),
+    SensorEntityDescription(
         key="cct_kelvin",
         name="Color temperature",
         native_unit_of_measurement="K",
@@ -86,6 +95,12 @@ class DaylightSensor(CoordinatorEntity, SensorEntity):
         attrs = {key: data[key] for key in keys}
         if self.entity_description.key == "lux":
             attrs.update(xy=data["xy"], xyz=data["xyz"], duv=data["duv"])
+        if self.entity_description.key == "melanopic_edi":
+            attrs.update(
+                melanopic_edi_reason=data["melanopic_edi_reason"],
+                relative_melanopic_spread=data["relative_melanopic_spread"],
+                spectral_reference="CIE S 026:2018 / D65",
+            )
         if self.entity_description.key in ("daylight_level", "noon_elevation"):
             attrs["solar_noon"] = data["solar_noon"]
         return attrs

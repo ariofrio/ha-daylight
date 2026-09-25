@@ -14,6 +14,50 @@ async def setup_entry(hass):
     return entry
 
 
+async def test_melanopic_sensor_and_actions_expose_the_same_unscaled_reference(hass):
+    await setup_entry(hass)
+    sensor = hass.states.get("sensor.daylight_melanopic_edi")
+    assert sensor is not None
+    assert sensor.attributes["unit_of_measurement"] == "lx"
+    assert sensor.attributes["state_class"] == "measurement"
+    a = await hass.services.async_call(
+        "daylight",
+        "from_elevation",
+        {"geometric_elevation": 0},
+        blocking=True,
+        return_response=True,
+    )
+    b = await hass.services.async_call(
+        "daylight",
+        "from_level",
+        {"daylight_level": 1, "noon_elevation": 0},
+        blocking=True,
+        return_response=True,
+    )
+    assert a["melanopic_edi"] == pytest.approx(1104, rel=0.01)
+    assert b["melanopic_edi"] == pytest.approx(a["melanopic_edi"])
+    assert "melanopic_edi_reason" in sensor.attributes
+
+
+@pytest.mark.parametrize(
+    "time,expected,reason",
+    [
+        ("2026-09-23T18:48:00Z", "unknown", "outside_numerically_resolved_table"),
+        ("2026-09-23T20:00:00Z", "0.0", "no_solar_reference"),
+    ],
+)
+async def test_melanopic_sensor_distinguishes_unresolved_twilight_from_night(
+    hass, freezer, time, expected, reason
+):
+    hass.config.latitude = 0
+    hass.config.longitude = 0
+    freezer.move_to(time)
+    await setup_entry(hass)
+    sensor = hass.states.get("sensor.daylight_melanopic_edi")
+    assert sensor.state == expected
+    assert sensor.attributes["melanopic_edi_reason"] == reason
+
+
 async def test_actions_return_independent_results_without_changing_sensors(hass):
     await setup_entry(hass)
     before = {s.entity_id: s.state for s in hass.states.async_all("sensor")}
@@ -43,7 +87,7 @@ async def test_actions_return_independent_results_without_changing_sensors(hass)
 async def test_single_instance_setup_and_unload(hass):
     entry = await setup_entry(hass)
     states = hass.states.async_all("sensor")
-    assert len(states) == 5
+    assert len(states) == 6
     level = next(s for s in states if s.entity_id.endswith("_level"))
     assert 0 <= float(level.state) <= 1
     result = await hass.config_entries.flow.async_init("daylight", context={"source": "user"})
@@ -60,7 +104,7 @@ async def test_config_flow_without_yaml_or_credentials(hass):
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] == "create_entry"
     await hass.async_block_till_done()
-    assert len(hass.states.async_all("sensor")) == 5
+    assert len(hass.states.async_all("sensor")) == 6
 
 
 async def test_default_level_uses_todays_noon_and_rejects_boolean(hass):

@@ -24,6 +24,16 @@ The runtime uses [shape-preserving cubic (PCHIP) interpolation](https://docs.sci
 
 CCT is omitted outside the 1500–25000 K reporting range, beyond |Duv| = 0.02, or where paired-run uv disagreement exceeds 0.005. These are engineering reporting limits, not physical limits on possible daylight colors. XYZ/xy remain available for modeled light even when CCT is omitted.
 
+## Melanopic EDI
+
+The same direct-plus-diffuse horizontal spectra are weighted with the [CIE S 026:2018 melanopic action spectrum](https://doi.org/10.25039/CIE.DS.vqqhzp5a). Melanopic irradiance is divided by D65's melanopic irradiance per photopic lux (approximately 0.0013262 W/lm), following the [CIE toolbox calculation](https://files.cie.co.at/CIE%20S%20026%20alpha-opic%20Toolbox%20User%20Guide.pdf). D65 defines the unit conversion; it is not substituted for the modeled daylight spectrum. Neither CCT nor a generic LED conversion factor is an input.
+
+The offline reducer integrates the two simulation seeds separately, stores their mean mEDI and relative difference, and the runtime interpolates log mEDI with PCHIP independently of XYZ and CCT. `relative_melanopic_spread` reports the larger paired difference at the bounding nodes; it is not a confidence interval or an interpolation-error bound. The action-spectrum data are checksum-verified and zero outside 380–780 nm. The integration grid is 360–830 nm at 1 nm spacing, matching the retained source spectra.
+
+Melanopic values are available from -10° through 90°, even when CCT is withheld. Below -10° and above -18°, `melanopic_edi` is null and `melanopic_edi_reason` is `outside_numerically_resolved_table`: the estimated photopic twilight tail does not supply a resolved spectrum. At or below -18°, mEDI is zero with reason `no_solar_reference`, using the same nighttime convention as photopic lux. No indoor scaling, exposure target, lamp spectrum, eye orientation, eyelid transmission, or physiological response model is included. A horizontal reference does not itself describe exposure at a person's eyes.
+
+[Offline reducer](../tools/melanopic.py) · [CIE data attribution and licensing](../custom_components/daylight/NOTICE.md).
+
 ## Twilight and numerical quality
 
 Each diffuse node has two independent seeds. The generator retains a contiguous suffix of nodes with positive estimates and paired lux disagreement no greater than 25%, starting no later than -6°. Paired disagreement is a diagnostic; two seeds do not establish total uncertainty or accuracy. `reference` means the bounding nodes' paired lux disagreement is at most 2% and uv disagreement at most 0.001; `approximate` means those stricter thresholds are exceeded. Neither label establishes measurement accuracy or excludes interpolation/systematic error.
