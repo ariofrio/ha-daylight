@@ -7,6 +7,39 @@ import pytest
 from custom_components.daylight.model import from_elevation, from_level
 
 
+def test_melanopic_edi_is_unscaled_and_independent_of_cct():
+    # Previously integrated research spectra give about 1104 mEDI at the horizon.
+    assert from_elevation(0)["melanopic_edi"] == pytest.approx(1104, rel=0.01)
+    assert 80_000 < from_elevation(60)["melanopic_edi"] < 130_000
+    twilight = from_elevation(-10)
+    assert twilight["cct_kelvin"] is None
+    assert twilight["melanopic_edi"] > 0
+    assert twilight["melanopic_edi_reason"] is None
+
+
+def test_melanopic_deep_twilight_is_unknown_and_night_is_a_reference_zero():
+    for angle in (-17.99, -15, -12, -10.001):
+        result = from_elevation(angle)
+        assert result["lux"] > 0
+        assert result["melanopic_edi"] is None
+        assert result["melanopic_edi_reason"] == "outside_numerically_resolved_table"
+    for angle in (-90, -18):
+        result = from_elevation(angle)
+        assert result["melanopic_edi"] == 0
+        assert result["melanopic_edi_reason"] == "no_solar_reference"
+    assert from_elevation(-10)["melanopic_edi"] > 0
+
+
+def test_melanopic_reference_is_positive_monotone_and_continuous():
+    samples = [from_elevation(-10 + i * 0.25)["melanopic_edi"] for i in range(401)]
+    assert all(math.isfinite(value) and value > 0 for value in samples)
+    assert all(b >= a for a, b in zip(samples, samples[1:]))
+    for angle in (-8, -6, 0, 5, 20, 60, 75):
+        assert from_elevation(angle - 1e-6)["melanopic_edi"] == pytest.approx(
+            from_elevation(angle + 1e-6)["melanopic_edi"], rel=1e-5
+        )
+
+
 def test_daylight_is_finite_bright_and_returns_color():
     result = from_elevation(60)
     assert 80_000 < result["lux"] < 130_000
@@ -22,6 +55,10 @@ def test_level_and_elevation_are_the_same_calculation(angle):
     a = from_elevation(angle)
     b = from_level(level, 90)
     assert b["lux"] == pytest.approx(a["lux"])
+    if a["melanopic_edi"] is None:
+        assert b["melanopic_edi"] is None
+    else:
+        assert b["melanopic_edi"] == pytest.approx(a["melanopic_edi"])
     if a["cct_kelvin"] is None:
         assert b["cct_kelvin"] is None
     else:

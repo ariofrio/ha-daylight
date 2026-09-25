@@ -31,6 +31,12 @@ def load_table():
     table["log_slopes"] = list(
         zip(*[_pchip_slopes(angles, [math.log(n["xyz"][j]) for n in nodes]) for j in range(3)])
     )
+    melanopic_nodes = [n for n in nodes if "melanopic_edi" in n]
+    table["melanopic_nodes"] = melanopic_nodes
+    table["melanopic_slopes"] = _pchip_slopes(
+        [n["elevation"] for n in melanopic_nodes],
+        [math.log(n["melanopic_edi"]) for n in melanopic_nodes],
+    )
     return table
 
 
@@ -98,6 +104,9 @@ def from_elevation(geometric_elevation):
         "geometric_elevation": angle,
         "model": table["model"],
         "lux": 0.0,
+        "melanopic_edi": 0.0,
+        "melanopic_edi_reason": "no_solar_reference",
+        "relative_melanopic_spread": None,
         "cct_kelvin": None,
         "xyz": [0.0, 0.0, 0.0],
         "xy": None,
@@ -109,6 +118,31 @@ def from_elevation(geometric_elevation):
     }
     if angle <= DARK_ELEVATION:
         return result
+    melanopic_nodes = table["melanopic_nodes"]
+    if angle < melanopic_nodes[0]["elevation"]:
+        result.update(
+            melanopic_edi=None,
+            melanopic_edi_reason="outside_numerically_resolved_table",
+        )
+    else:
+        elevations = [n["elevation"] for n in melanopic_nodes]
+        i = max(0, min(len(melanopic_nodes) - 2, bisect_right(elevations, angle) - 1))
+        a, b = melanopic_nodes[i : i + 2]
+        h = b["elevation"] - a["elevation"]
+        t = (angle - a["elevation"]) / h
+        slopes = table["melanopic_slopes"]
+        result.update(
+            melanopic_edi=math.exp(
+                (2 * t**3 - 3 * t**2 + 1) * math.log(a["melanopic_edi"])
+                + (t**3 - 2 * t**2 + t) * h * slopes[i]
+                + (-2 * t**3 + 3 * t**2) * math.log(b["melanopic_edi"])
+                + (t**3 - t**2) * h * slopes[i + 1]
+            ),
+            melanopic_edi_reason=None,
+            relative_melanopic_spread=max(
+                a["relative_melanopic_spread"], b["relative_melanopic_spread"]
+            ),
+        )
     rows = table["nodes"]
     # Below the numerically usable table, preserve a continuous, explicitly
     # estimated tail. Zero at -18 degrees is a reference convention, not a

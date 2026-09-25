@@ -12,6 +12,7 @@ from pathlib import Path
 
 import colour
 import numpy as np
+from melanopic import enrich_reference
 
 ROOT = Path(__file__).resolve().parents[1]
 NODES = [
@@ -149,7 +150,6 @@ def main():
         "planckian_locus": locus,
     }
     dest = ROOT / "custom_components/daylight/reference.json"
-    dest.write_text(json.dumps(table, separators=(",", ":"), allow_nan=False) + "\n")
     (ROOT / "docs/reference-provenance.json").write_text(
         json.dumps({"nodes": all_rows, "sources": provenance}, indent=2, allow_nan=False) + "\n"
     )
@@ -165,6 +165,9 @@ def main():
             ]
         )
         writer.writerows(spectra)
+    with (ROOT / "tools/reference-spectra.csv").open() as stream:
+        enrich_reference(table, list(csv.DictReader(stream)))
+    dest.write_text(json.dumps(table, separators=(",", ":"), allow_nan=False) + "\n")
     print("Reference spans", rows[0]["elevation"], "to 90 degrees; bytes", dest.stat().st_size)
     for r in all_rows:
         print(r)

@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Set up Daylight",
-        "description": "Create a fixed-atmosphere daylight reference using Home Assistant's location. Includes illuminance, color temperature, normalized level, and geometric solar elevation. This integration does not control lights."
+        "description": "Create a fixed-atmosphere daylight reference using Home Assistant's location. Includes illuminance, melanopic EDI, color temperature, normalized level, and geometric solar elevation. This integration does not control lights."
       }
     },
     "abort": {
@@ -15,7 +15,7 @@
   "services": {
     "from_elevation": {
       "name": "Calculate from solar elevation",
-      "description": "Return reference lux and CCT for a geometric solar elevation. No state is changed. Capture the response data.",
+      "description": "Return reference lux, melanopic EDI, and CCT for a geometric solar elevation. No state is changed. Capture the response data.",
       "fields": {
         "geometric_elevation": {
           "name": "Geometric solar elevation",
@@ -25,7 +25,7 @@
     },
     "from_level": {
       "name": "Calculate from daylight level",
-      "description": "Return reference lux and CCT for a normalized daylight level. No state is changed. Capture the response data.",
+      "description": "Return reference lux, melanopic EDI, and CCT for a normalized daylight level. No state is changed. Capture the response data.",
       "fields": {
         "daylight_level": {
           "name": "Daylight level",

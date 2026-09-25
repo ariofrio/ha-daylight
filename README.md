@@ -1,6 +1,6 @@
 # Daylight for Home Assistant
 
-A shared, local daylight reference: geometric solar elevation or a normalized daylight level in, illuminance and color temperature out. Install through HACS, confirm setup, and use the resulting sensors and calculation actions in your own automations.
+A shared, local daylight reference: geometric solar elevation or a normalized daylight level in, illuminance, melanopic EDI, and color temperature out. Install through HACS, confirm setup, and use the resulting sensors and calculation actions in your own automations.
 
 Daylight does not control lights or implement motion handling, dimmer behavior, brightness scaling, or lamp color limits. Those belong in consuming automations.
 
@@ -18,17 +18,18 @@ Manual installation: copy `custom_components/daylight/` into the same location i
 
 ## Current reference
 
-Setup creates one device with five sensors, updated together every minute using HA's configured latitude, longitude, and time zone:
+Setup creates one device with six sensors, updated together every minute using HA's configured latitude, longitude, and time zone:
 
 | Sensor | Value |
 |---|---|
 | Daylight illuminance | Clear-sky, horizontal solar illuminance in lux |
+| Daylight melanopic EDI | Unscaled, clear-sky horizontal melanopic equivalent daylight illuminance in lux (CIE S 026 / D65) |
 | Daylight color temperature | CCT in kelvin, or unknown when a useful CCT cannot be reported |
 | Daylight level | Normalized elevation from 0 to 1 |
 | Daylight geometric solar elevation | Solar-center elevation without refraction, in degrees |
 | Daylight noon solar elevation | Today's geometric elevation at solar noon, in degrees |
 
-Entity IDs are assigned by HA and can be renamed. The illuminance sensor also exposes XYZ, xy chromaticity, and Duv attributes. Sensors expose the model identifier, quality, and reason for missing CCT. This is an outdoor solar reference, not measured room brightness.
+Entity IDs are assigned by HA and can be renamed. The illuminance sensor also exposes XYZ, xy chromaticity, and Duv attributes. Sensors expose the model identifier, quality, and reason for missing CCT. The melanopic EDI sensor exposes `melanopic_edi_reason` and `relative_melanopic_spread` (a paired-simulation diagnostic, not an accuracy bound). Its unit is lx, but it is a distinct spectral metric from ordinary illuminance. No indoor multiplier, lamp calibration, or scheduling is applied. This is an outdoor solar reference, not measured room brightness.
 
 ## Calculation actions
 
@@ -48,7 +49,7 @@ Both actions return a mapping and do not change sensors or lights. Use `response
   response_variable: daylight_result
 ```
 
-Read `daylight_result.lux` and `daylight_result.cct_kelvin` in subsequent templates. CCT may be null: check it before passing a value to a lamp. Actions also return geometry, XYZ, xy, Duv, quality, and model metadata.
+Read `daylight_result.lux`, `daylight_result.melanopic_edi`, and `daylight_result.cct_kelvin` in subsequent templates. CCT may be null: check it before passing a value to a lamp. Melanopic EDI is independent of CCT and may remain available when CCT is null. Between -18° and -10°, melanopic EDI is null with `melanopic_edi_reason: outside_numerically_resolved_table`; at or below -18° it is zero with `no_solar_reference`. Actions also return geometry, XYZ, xy, Duv, quality, and model metadata.
 
 `from_level` optionally accepts `noon_elevation` to make the calculation independent of today's location/date. Otherwise it computes today's value from HA's configuration.
 
@@ -66,7 +67,7 @@ The actions reject nonfinite or out-of-range inputs.
 
 ## Physical model and limitations
 
-[Model documentation](docs/model.md) describes the fixed atmosphere, spectral calculation, interpolation, numerical checks, and explicitly estimated deep-twilight tail. Version 0.1 is an approximate physical reference, not a calibrated measurement or a forecast of actual conditions.
+[Model documentation](docs/model.md) describes the fixed atmosphere, spectral calculation, interpolation, numerical checks, and explicitly estimated deep-twilight tail. This is an approximate physical reference, not a calibrated measurement or a forecast of actual conditions.
 
 The reference includes daylight and twilight. It does not assume dimmer light is always warmer: diffuse twilight can be very blue. It does not clamp scientific CCT to a lamp's supported range.
 
@@ -87,4 +88,4 @@ Delete the Daylight integration under Devices & services, then remove its downlo
 
 ## License and authorship
 
-MIT. The initial implementation and documentation were written by Codex at the repository owner's direction; the physical assumptions and limitations are documented for review.
+Code is MIT. The CIE action-spectrum data and derived melanopic reference values carry CC BY-SA 4.0 attribution; see [data notices](custom_components/daylight/NOTICE.md). The initial implementation and documentation were written by Codex at the repository owner's direction; the physical assumptions and limitations are documented for review.
