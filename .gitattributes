@@ -1,0 +1,2 @@
+# Preserve published CIE dataset bytes for provenance checksums.
+tools/data/* -text
