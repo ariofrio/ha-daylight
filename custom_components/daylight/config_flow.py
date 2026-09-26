@@ -67,10 +67,6 @@ class DaylightOptionsFlow(OptionsFlow):
         )
 
     async def async_step_review(self, user_input=None):
-        if user_input is not None:
-            if user_input.get("edit"):
-                return await self.async_step_init()
-            return self.async_create_entry(title="", data=self._proposed)
         local_date = datetime.now(ZoneInfo(self.hass.config.time_zone)).date()
         curve = await self.hass.async_add_executor_job(
             daily_curve,
@@ -87,8 +83,11 @@ class DaylightOptionsFlow(OptionsFlow):
         previews[token] = render_svg(curve)
         path = f"/api/daylight/preview/{token}"
         signed = async_sign_path(self.hass, path, timedelta(minutes=15))
-        return self.async_show_form(
+        return self.async_show_menu(
             step_id="review",
-            data_schema=vol.Schema({vol.Optional("edit", default=False): bool}),
+            menu_options=["save", "init"],
             description_placeholders={"preview_url": signed, "date": local_date.isoformat()},
         )
+
+    async def async_step_save(self, user_input=None):
+        return self.async_create_entry(title="", data=self._proposed)

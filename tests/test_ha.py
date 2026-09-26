@@ -133,7 +133,9 @@ async def test_options_preview_does_not_save_until_review(hass, hass_client):
     review = await hass.config_entries.options.async_configure(
         initial["flow_id"], {"tilt": 90, "facing_mode": "fixed", "bearing": 90}
     )
+    assert review["type"] == "menu"
     assert review["step_id"] == "review"
+    assert review["menu_options"] == ["save", "init"]
     assert review["description_placeholders"]["preview_url"].startswith("/api/daylight/preview/")
     client = await hass_client()
     response = await client.get(review["description_placeholders"]["preview_url"])
@@ -141,7 +143,9 @@ async def test_options_preview_does_not_save_until_review(hass, hass_client):
     assert response.content_type == "image/svg+xml"
     assert "Melanopic EDI" in await response.text()
     assert entry.options == {}
-    saved = await hass.config_entries.options.async_configure(review["flow_id"], {})
+    saved = await hass.config_entries.options.async_configure(
+        review["flow_id"], {"next_step_id": "save"}
+    )
     assert saved["type"] == "create_entry"
     assert entry.options["tilt"] == 90
     assert entry.options["bearing"] == 90
@@ -157,7 +161,9 @@ async def test_orientation_options_refresh_existing_sensors(hass, freezer):
     review = await hass.config_entries.options.async_configure(
         flow["flow_id"], {"tilt": 90, "facing_mode": "follow_sun", "bearing": 90}
     )
-    await hass.config_entries.options.async_configure(review["flow_id"], {})
+    await hass.config_entries.options.async_configure(
+        review["flow_id"], {"next_step_id": "save"}
+    )
     await hass.async_block_till_done()
     assert entry.runtime_data.data["receiver_tilt"] == 90
     assert entry.runtime_data.data["receiver_facing_mode"] == "follow_sun"
@@ -170,7 +176,9 @@ async def test_review_can_return_to_edit_without_saving(hass):
     review = await hass.config_entries.options.async_configure(
         flow["flow_id"], {"tilt": 45, "facing_mode": "fixed", "bearing": 180}
     )
-    edit = await hass.config_entries.options.async_configure(review["flow_id"], {"edit": True})
+    edit = await hass.config_entries.options.async_configure(
+        review["flow_id"], {"next_step_id": "init"}
+    )
     assert edit["step_id"] == "init"
     assert any(key.default() == 45 for key in edit["data_schema"].schema if key.schema == "tilt")
     assert entry.options == {}
@@ -185,7 +193,9 @@ async def test_configure_one_device_does_not_change_another(hass):
     review = await hass.config_entries.options.async_configure(
         flow["flow_id"], {"tilt": 60, "facing_mode": "fixed", "bearing": 90}
     )
-    await hass.config_entries.options.async_configure(review["flow_id"], {})
+    await hass.config_entries.options.async_configure(
+        review["flow_id"], {"next_step_id": "save"}
+    )
     await hass.async_block_till_done()
     assert first.options == {}
     assert first.runtime_data.data["receiver_tilt"] == 0
