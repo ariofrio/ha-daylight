@@ -130,6 +130,12 @@ async def test_options_preview_does_not_save_until_review(hass, hass_client):
     initial = await hass.config_entries.options.async_init(entry.entry_id)
     assert initial["type"] == "form"
     assert initial["step_id"] == "init"
+    facing = next(
+        selector
+        for key, selector in initial["data_schema"].schema.items()
+        if key.schema == "facing_mode"
+    )
+    assert facing.config["translation_key"] == "facing_mode"
     review = await hass.config_entries.options.async_configure(
         initial["flow_id"], {"tilt": 90, "facing_mode": "fixed", "bearing": 90}
     )

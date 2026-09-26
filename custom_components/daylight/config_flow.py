@@ -57,7 +57,9 @@ class DaylightOptionsFlow(OptionsFlow):
                         NumberSelectorConfig(min=0, max=90, step=1, mode=NumberSelectorMode.SLIDER)
                     ),
                     vol.Required("facing_mode", default=current["facing_mode"]): SelectSelector(
-                        SelectSelectorConfig(options=list(FACING_MODES))
+                        SelectSelectorConfig(
+                            options=list(FACING_MODES), translation_key="facing_mode"
+                        )
                     ),
                     vol.Required("bearing", default=current["bearing"]): NumberSelector(
                         NumberSelectorConfig(min=0, max=359, step=1, mode=NumberSelectorMode.SLIDER)
