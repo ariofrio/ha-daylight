@@ -161,9 +161,7 @@ async def test_orientation_options_refresh_existing_sensors(hass, freezer):
     review = await hass.config_entries.options.async_configure(
         flow["flow_id"], {"tilt": 90, "facing_mode": "follow_sun", "bearing": 90}
     )
-    await hass.config_entries.options.async_configure(
-        review["flow_id"], {"next_step_id": "save"}
-    )
+    await hass.config_entries.options.async_configure(review["flow_id"], {"next_step_id": "save"})
     await hass.async_block_till_done()
     assert entry.runtime_data.data["receiver_tilt"] == 90
     assert entry.runtime_data.data["receiver_facing_mode"] == "follow_sun"
@@ -193,9 +191,7 @@ async def test_configure_one_device_does_not_change_another(hass):
     review = await hass.config_entries.options.async_configure(
         flow["flow_id"], {"tilt": 60, "facing_mode": "fixed", "bearing": 90}
     )
-    await hass.config_entries.options.async_configure(
-        review["flow_id"], {"next_step_id": "save"}
-    )
+    await hass.config_entries.options.async_configure(review["flow_id"], {"next_step_id": "save"})
     await hass.async_block_till_done()
     assert first.options == {}
     assert first.runtime_data.data["receiver_tilt"] == 0
