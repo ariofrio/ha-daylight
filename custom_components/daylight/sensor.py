@@ -93,6 +93,13 @@ class DaylightSensor(CoordinatorEntity, SensorEntity):
         data = self.coordinator.data
         keys = ("model", "quality", "cct_reason", "relative_lux_spread", "uv_spread")
         attrs = {key: data[key] for key in keys}
+        if self.entity_description.key in ("lux", "melanopic_edi", "cct_kelvin"):
+            attrs.update(
+                receiver_tilt=data["receiver_tilt"],
+                receiver_facing_mode=data["receiver_facing_mode"],
+                receiver_bearing=data["receiver_bearing"],
+                orientation_model=data["orientation_model"],
+            )
         if self.entity_description.key == "lux":
             attrs.update(xy=data["xy"], xyz=data["xyz"], duv=data["duv"])
         if self.entity_description.key == "melanopic_edi":

@@ -18,12 +18,12 @@ Manual installation: copy `custom_components/daylight/` into the same location i
 
 ## Current reference
 
-Setup creates one device with six sensors, updated together every minute using HA's configured latitude, longitude, and time zone:
+Setup creates one device with six sensors, updated together every minute using HA's configured latitude, longitude, and time zone. The initial receiving surface is horizontal:
 
 | Sensor | Value |
 |---|---|
-| Daylight illuminance | Clear-sky, horizontal solar illuminance in lux |
-| Daylight melanopic EDI | Unscaled, clear-sky horizontal melanopic equivalent daylight illuminance in lux (CIE S 026 / D65) |
+| Daylight illuminance | Clear-sky illuminance on the configured receiving surface, in lux |
+| Daylight melanopic EDI | Unscaled, clear-sky melanopic equivalent daylight illuminance on that surface, in lux (CIE S 026 / D65) |
 | Daylight color temperature | CCT in kelvin, or unknown when a useful CCT cannot be reported |
 | Daylight level | Normalized elevation from 0 to 1 |
 | Daylight geometric solar elevation | Solar-center elevation without refraction, in degrees |
@@ -31,9 +31,17 @@ Setup creates one device with six sensors, updated together every minute using H
 
 Entity IDs are assigned by HA and can be renamed. The illuminance sensor also exposes XYZ, xy chromaticity, and Duv attributes. Sensors expose the model identifier, quality, and reason for missing CCT. The melanopic EDI sensor exposes `melanopic_edi_reason` and `relative_melanopic_spread` (a paired-simulation diagnostic, not an accuracy bound). Its unit is lx, but it is a distinct spectral metric from ordinary illuminance. No indoor multiplier, lamp calibration, or scheduling is applied. This is an outdoor solar reference, not measured room brightness.
 
+## Configure the receiving surface
+
+Open **Settings → Devices & services → Daylight → Configure**. One form contains tilt (0° horizontal to 90° vertical), facing mode (fixed bearing or follow the sun), and compass bearing (0° north, 90° east, 180° south, 270° west). Bearing is ignored in follow-sun mode. Continue to see a static full-day preview of illuminance, melanopic EDI, and CCT for the unsaved settings. Save from the review step, or select **Edit settings instead of saving** to go back. Saving updates the existing sensor entities without resetting their history.
+
+At tilt 0°, the values are exactly the original horizontal spectral reference. At other tilts, direct sunlight follows the sun's actual incidence angle, while diffuse sky light is estimated as isotropic and ground reflection uses the reference's 0.2 albedo. This makes the orientation-dependent values **estimates**, especially near sunrise and sunset; the preview and live sensors use the same model. The sensors expose `receiver_tilt`, `receiver_facing_mode`, `receiver_bearing`, and `orientation_model` attributes so a change in their history can be interpreted. The [model documentation](docs/model.md#tilted-receiving-surfaces) details the calculation and limits.
+
+The Configure dialog has a generated image, so it updates after continuing to the review step, not while dragging a slider. Its signed image URL expires after 15 minutes; return to the first step and preview again if needed.
+
 ## Calculation actions
 
-Both actions return a mapping and do not change sensors or lights. Use `response_variable` when calling them from an automation or script. They cannot be called as synchronous Jinja functions; the Python calculation is shared by actions and sensors.
+Both actions return the original **horizontal** reference, regardless of the device's configured orientation, and do not change sensors or lights. Use `response_variable` when calling them from an automation or script. They cannot be called as synchronous Jinja functions.
 
 ```yaml
 - action: daylight.from_elevation

@@ -24,6 +24,14 @@ Outputs:
 - `docs/reference-provenance.json`: retained/rejected node diagnostics and hashes of source flux files.
 - `tools/reference-spectra.csv`: direct-horizontal and diffuse-horizontal spectra for both seeds at every sampled elevation, in W m⁻² nm⁻¹.
 
+To rebuild the small direct-normal lookup for tilted receiving surfaces from that retained CSV:
+
+```sh
+uv run --with colour-science==0.4.7 tools/generate_direct_reference.py
+```
+
+This writes `custom_components/daylight/direct_reference.json`. It divides direct-horizontal spectra by sin(geometric elevation) at positive elevations, averages both seeds, then reduces XYZ and melanopic EDI. The zero-elevation node is zero by convention. The runtime interpolates this lookup without scientific Python packages.
+
 See [the model documentation](../docs/model.md) for the exact assumptions and limitations. Generated spectra are numerical model outputs, not observations. Paths and location-specific information from the HA installation are not included.
 
 To add or rebuild melanopic EDI from the retained CSV without rerunning libRadtran:

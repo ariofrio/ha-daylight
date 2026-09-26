@@ -34,6 +34,16 @@ Melanopic values are available from -10° through 90°, even when CCT is withhel
 
 [Offline reducer](../tools/melanopic.py) · [CIE data attribution and licensing](../custom_components/daylight/NOTICE.md).
 
+## Tilted receiving surfaces
+
+The default 0° tilt returns the horizontal reference above without changing its values. For a tilted plane, the direct-normal spectrum is derived offline from the retained direct-horizontal spectra by dividing by sin(geometric solar elevation), then integrated into XYZ and melanopic EDI in [generate_direct_reference.py](../tools/generate_direct_reference.py). The runtime interpolates that compact [direct table](../custom_components/daylight/direct_reference.json) over 0–90°. Astral supplies solar azimuth as well as geometric elevation.
+
+For a surface tilted β from horizontal and facing compass bearing γ, with solar elevation e and azimuth α, the nonnegative direct incidence factor is `max(0, sin(e) cos(β) + cos(e) sin(β) cos(α−γ))`. It is zero when the sun is below the horizon. In follow-sun mode, γ equals the current solar azimuth; tilt remains unchanged.
+
+The horizontal diffuse spectrum is the horizontal total minus the direct spectrum projected onto horizontal. A first approximation scales it by `(1 + cos β)/2`, the isotropic-sky view factor. The reference's Lambertian ground albedo of 0.2 contributes `0.2 × (1 − cos β)/2` times horizontal total. These factors are applied to XYZ and melanopic EDI separately; CCT is then recalculated from the resulting combined XYZ. In the unresolved deep-twilight tail, only photopic lux is scaled, and CCT and melanopic EDI remain unreported.
+
+The isotropic-sky assumption is **an approximation**, not a directional radiative-transfer calculation. It ignores horizon brightening and the circumsolar distribution of diffuse light. Tilted values are marked `estimated_orientation` and expose `orientation_model: isotropic_sky_estimate`. The numerical spread attributes still describe the original horizontal solver runs and do not bound orientation error. This model has not been validated against measured directional daylight.
+
 ## Twilight and numerical quality
 
 Each diffuse node has two independent seeds. The generator retains a contiguous suffix of nodes with positive estimates and paired lux disagreement no greater than 25%, starting no later than -6°. Paired disagreement is a diagnostic; two seeds do not establish total uncertainty or accuracy. `reference` means the bounding nodes' paired lux disagreement is at most 2% and uv disagreement at most 0.001; `approximate` means those stricter thresholds are exceeded. Neither label establishes measurement accuracy or excludes interpolation/systematic error.

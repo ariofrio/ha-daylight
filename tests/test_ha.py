@@ -120,3 +120,54 @@ async def test_default_level_uses_todays_noon_and_rejects_boolean(hass):
         await hass.services.async_call(
             "daylight", "from_level", {"daylight_level": True}, blocking=True, return_response=True
         )
+
+
+async def test_options_preview_does_not_save_until_review(hass, hass_client):
+    entry = await setup_entry(hass)
+    initial = await hass.config_entries.options.async_init(entry.entry_id)
+    assert initial["type"] == "form"
+    assert initial["step_id"] == "init"
+    review = await hass.config_entries.options.async_configure(
+        initial["flow_id"], {"tilt": 90, "facing_mode": "fixed", "bearing": 90}
+    )
+    assert review["step_id"] == "review"
+    assert review["description_placeholders"]["preview_url"].startswith("/api/daylight/preview/")
+    client = await hass_client()
+    response = await client.get(review["description_placeholders"]["preview_url"])
+    assert response.status == 200
+    assert response.content_type == "image/svg+xml"
+    assert "Melanopic EDI" in await response.text()
+    assert entry.options == {}
+    saved = await hass.config_entries.options.async_configure(review["flow_id"], {})
+    assert saved["type"] == "create_entry"
+    assert entry.options["tilt"] == 90
+    assert entry.options["bearing"] == 90
+
+
+async def test_orientation_options_refresh_existing_sensors(hass, freezer):
+    hass.config.latitude = 40.7
+    hass.config.longitude = -74.0
+    freezer.move_to("2026-09-26T13:00:00Z")
+    entry = await setup_entry(hass)
+    before = float(hass.states.get("sensor.daylight_illuminance").state)
+    flow = await hass.config_entries.options.async_init(entry.entry_id)
+    review = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"tilt": 90, "facing_mode": "follow_sun", "bearing": 90}
+    )
+    await hass.config_entries.options.async_configure(review["flow_id"], {})
+    await hass.async_block_till_done()
+    assert entry.runtime_data.data["receiver_tilt"] == 90
+    assert entry.runtime_data.data["receiver_facing_mode"] == "follow_sun"
+    assert float(hass.states.get("sensor.daylight_illuminance").state) != pytest.approx(before)
+
+
+async def test_review_can_return_to_edit_without_saving(hass):
+    entry = await setup_entry(hass)
+    flow = await hass.config_entries.options.async_init(entry.entry_id)
+    review = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"tilt": 45, "facing_mode": "fixed", "bearing": 180}
+    )
+    edit = await hass.config_entries.options.async_configure(review["flow_id"], {"edit": True})
+    assert edit["step_id"] == "init"
+    assert any(key.default() == 45 for key in edit["data_schema"].schema if key.schema == "tilt")
+    assert entry.options == {}

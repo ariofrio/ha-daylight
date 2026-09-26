@@ -5,11 +5,12 @@
     "@ariofrio"
   ],
   "config_flow": true,
+  "dependencies": ["http"],
   "documentation": "https://github.com/ariofrio/ha-daylight",
   "integration_type": "service",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/ariofrio/ha-daylight/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.2.0"
+  "version": "0.3.0"
 }

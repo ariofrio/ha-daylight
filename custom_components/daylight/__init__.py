@@ -4,6 +4,8 @@ import logging
 from datetime import timedelta
 
 import voluptuous as vol
+from aiohttp import web
+from homeassistant.components.http.view import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
@@ -14,11 +16,32 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, NAME
 from .model import from_elevation, from_level, load_table, number
+from .orientation import _direct_nodes, oriented_daylight, validate_options
 from .solar import solar_context
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SENSOR]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+class DaylightPreviewView(HomeAssistantView):
+    """Serve a short-lived, signed review image."""
+
+    url = "/api/daylight/preview/{token}"
+    name = "api:daylight:preview"
+
+    def __init__(self, previews):
+        self.previews = previews
+
+    async def get(self, request, token):
+        svg = self.previews.get(token)
+        if svg is None:
+            raise web.HTTPNotFound()
+        return web.Response(
+            text=svg,
+            content_type="image/svg+xml",
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
 
 
 def current_context(hass):
@@ -30,6 +53,9 @@ def current_context(hass):
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Register pure response actions once, independent of config-entry lifecycle."""
     await hass.async_add_executor_job(load_table)
+    await hass.async_add_executor_job(_direct_nodes)
+    hass.data[DOMAIN] = {"previews": {}}
+    hass.http.register_view(DaylightPreviewView(hass.data[DOMAIN]["previews"]))
 
     async def calculate_elevation(call: ServiceCall) -> dict:
         try:
@@ -89,15 +115,27 @@ class DaylightCoordinator(DataUpdateCoordinator[dict]):
 
     async def _async_update_data(self):
         context = current_context(self.hass)
-        return {**from_elevation(context["geometric_elevation"]), **context}
+        options = validate_options(self.config_entry.options)
+        return {
+            **oriented_daylight(
+                context["geometric_elevation"], context["solar_azimuth"], **options
+            ),
+            **context,
+        }
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = DaylightCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+    entry.async_on_unload(entry.add_update_listener(async_update_options))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
+    """Refresh current values as soon as reviewed options are saved."""
+    await entry.runtime_data.async_request_refresh()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
