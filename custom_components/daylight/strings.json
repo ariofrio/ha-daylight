@@ -29,8 +29,7 @@
       },
       "review": {
         "title": "Review daily daylight curve",
-        "description": "Predicted values for {date} at Home Assistant’s location. The three panels show illuminance, melanopic EDI, and color temperature across the local day. Values between simulated directions are interpolated clear-sky estimates. No setting changes until you save.\n\n![Daily daylight preview]({preview_url})",
-        "menu_options": {"save": "Save settings", "init": "Back to settings"}
+        "description": "Predicted values for {date} at Home Assistant’s location. The three panels show illuminance, melanopic EDI, and color temperature across the local day. Values between simulated directions are interpolated clear-sky estimates. No setting changes until you save.\n\n![Daily daylight preview]({preview_url})"
       }
     }
   },

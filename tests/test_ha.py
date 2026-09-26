@@ -135,7 +135,7 @@ async def test_options_preview_does_not_save_until_review(hass, hass_client):
     )
     assert review["type"] == "menu"
     assert review["step_id"] == "review"
-    assert review["menu_options"] == ["save", "init"]
+    assert review["menu_options"] == {"save": "Save settings", "init": "Back to settings"}
     assert review["description_placeholders"]["preview_url"].startswith("/api/daylight/preview/")
     client = await hass_client()
     response = await client.get(review["description_placeholders"]["preview_url"])

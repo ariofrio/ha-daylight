@@ -85,7 +85,7 @@ class DaylightOptionsFlow(OptionsFlow):
         signed = async_sign_path(self.hass, path, timedelta(minutes=15))
         return self.async_show_menu(
             step_id="review",
-            menu_options=["save", "init"],
+            menu_options={"save": "Save settings", "init": "Back to settings"},
             description_placeholders={"preview_url": signed, "date": local_date.isoformat()},
         )
 
