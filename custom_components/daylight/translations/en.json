@@ -4,13 +4,11 @@
     "step": {
       "user": {
         "title": "Set up Daylight",
-        "description": "Create a fixed-atmosphere daylight reference using Home Assistant's location. Includes illuminance, melanopic EDI, color temperature, normalized level, and geometric solar elevation. This integration does not control lights."
+        "description": "Create a fixed-atmosphere daylight reference using Home Assistant's location. Includes illuminance, melanopic EDI, color temperature, normalized level, and geometric solar elevation. This integration does not control lights.",
+        "data": {"name": "Device name"}
       }
     },
-    "abort": {
-      "already_configured": "Daylight is already configured.",
-      "single_instance_allowed": "Daylight is already configured."
-    }
+    "abort": {}
   },
   "options": {
     "step": {

@@ -18,7 +18,7 @@ Manual installation: copy `custom_components/daylight/` into the same location i
 
 ## Current reference
 
-Setup creates one device with six sensors, updated together every minute using HA's configured latitude, longitude, and time zone. The initial receiving surface is horizontal:
+Each setup creates one named device with six sensors, updated together every minute using HA's configured latitude, longitude, and time zone. Add Daylight again to create another independently configured receiving surface. The initial receiving surface is horizontal:
 
 | Sensor | Value |
 |---|---|
@@ -33,7 +33,7 @@ Entity IDs are assigned by HA and can be renamed. The illuminance sensor also ex
 
 ## Configure the receiving surface
 
-Open **Settings → Devices & services → Daylight → Configure**. One form contains tilt (0° horizontal to 90° vertical), facing mode (fixed bearing or follow the sun), and compass bearing (0° north, 90° east, 180° south, 270° west). Bearing is ignored in follow-sun mode. Continue to see a static full-day preview of illuminance, melanopic EDI, and CCT for the unsaved settings. Save from the review step, or select **Edit settings instead of saving** to go back. Saving updates the existing sensor entities without resetting their history.
+Open **Settings → Devices & services → Daylight → Configure** for the device you want to adjust. One form contains tilt (0° horizontal to 90° vertical), facing mode (fixed bearing or follow the sun), and compass bearing (0° north, 90° east, 180° south, 270° west). Bearing is ignored in follow-sun mode. Continue to see a static full-day preview of illuminance, melanopic EDI, and CCT for the unsaved settings. Save from the review step, or select **Edit settings instead of saving** to go back. Saving updates that device's existing sensor entities without resetting their history.
 
 At tilt 0°, the values are exactly the original horizontal spectral reference. At other tilts, direct sunlight follows the sun's actual incidence angle, while diffuse sky light is estimated as isotropic and ground reflection uses the reference's 0.2 albedo. This makes the orientation-dependent values **estimates**, especially near sunrise and sunset; the preview and live sensors use the same model. The sensors expose `receiver_tilt`, `receiver_facing_mode`, `receiver_bearing`, and `orientation_model` attributes so a change in their history can be interpreted. The [model documentation](docs/model.md#tilted-receiving-surfaces) details the calculation and limits.
 

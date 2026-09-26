@@ -84,18 +84,21 @@ async def test_actions_return_independent_results_without_changing_sensors(hass)
         )
 
 
-async def test_single_instance_setup_and_unload(hass):
+async def test_multiple_receiving_surfaces_can_be_configured(hass):
     entry = await setup_entry(hass)
     states = hass.states.async_all("sensor")
     assert len(states) == 6
     level = next(s for s in states if s.entity_id.endswith("_level"))
     assert 0 <= float(level.state) <= 1
     result = await hass.config_entries.flow.async_init("daylight", context={"source": "user"})
-    assert result["type"] == "abort"
-    assert result["reason"] == "single_instance_allowed"
+    assert result["type"] == "form"
+    added = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": "Bedroom"})
+    assert added["type"] == "create_entry"
+    await hass.async_block_till_done()
+    assert len(hass.states.async_all("sensor")) == 12
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
-    assert all(s.state == "unavailable" for s in hass.states.async_all("sensor"))
+    assert len([s for s in hass.states.async_all("sensor") if s.state != "unavailable"]) == 6
 
 
 async def test_config_flow_without_yaml_or_credentials(hass):
@@ -171,3 +174,20 @@ async def test_review_can_return_to_edit_without_saving(hass):
     assert edit["step_id"] == "init"
     assert any(key.default() == 45 for key in edit["data_schema"].schema if key.schema == "tilt")
     assert entry.options == {}
+
+
+async def test_configure_one_device_does_not_change_another(hass):
+    first = await setup_entry(hass)
+    second = MockConfigEntry(domain="daylight", title="Bedroom", data={})
+    second.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(second.entry_id)
+    flow = await hass.config_entries.options.async_init(second.entry_id)
+    review = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"tilt": 60, "facing_mode": "fixed", "bearing": 90}
+    )
+    await hass.config_entries.options.async_configure(review["flow_id"], {})
+    await hass.async_block_till_done()
+    assert first.options == {}
+    assert first.runtime_data.data["receiver_tilt"] == 0
+    assert second.options["tilt"] == 60
+    assert second.runtime_data.data["receiver_tilt"] == 60
