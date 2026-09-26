@@ -16,7 +16,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, NAME
 from .model import from_elevation, from_level, load_table, number
-from .orientation import _direct_nodes, oriented_daylight, validate_options
+from .orientation import _direct_nodes, load_directional_table, oriented_daylight, validate_options
 from .solar import solar_context
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,6 +54,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Register pure response actions once, independent of config-entry lifecycle."""
     await hass.async_add_executor_job(load_table)
     await hass.async_add_executor_job(_direct_nodes)
+    await hass.async_add_executor_job(load_directional_table)
     hass.data[DOMAIN] = {"previews": {}}
     hass.http.register_view(DaylightPreviewView(hass.data[DOMAIN]["previews"]))
 

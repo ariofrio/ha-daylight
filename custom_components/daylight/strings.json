@@ -14,7 +14,7 @@
     "step": {
       "init": {
         "title": "Configure receiving surface",
-        "description": "Set the angle and direction of the surface receiving daylight. A horizontal surface (tilt 0°) preserves the existing reference. Tilted-surface results use a direct-sun calculation and an approximate isotropic diffuse sky.",
+        "description": "Set the angle and direction of the surface receiving daylight. The fixed-atmosphere directional model includes direct sun, diffuse sky, and ground light; a horizontal surface is its 0° case.",
         "data": {
           "tilt": "Tilt from horizontal",
           "facing_mode": "Facing mode",
@@ -29,7 +29,7 @@
       },
       "review": {
         "title": "Review daily daylight curve",
-        "description": "Predicted values for {date} at Home Assistant’s location. The three panels show illuminance, melanopic EDI, and color temperature across the local day. Tilted-surface values are estimates because the diffuse sky is assumed isotropic. No setting changes until you save.\n\n![Daily daylight preview]({preview_url})",
+        "description": "Predicted values for {date} at Home Assistant’s location. The three panels show illuminance, melanopic EDI, and color temperature across the local day. Values between simulated directions are interpolated clear-sky estimates. No setting changes until you save.\n\n![Daily daylight preview]({preview_url})",
         "data": {"edit": "Edit settings instead of saving"},
         "submit": "Save settings"
       }
