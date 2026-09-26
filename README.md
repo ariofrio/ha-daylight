@@ -41,11 +41,12 @@ The Configure dialog has a generated image, so it updates after continuing to th
 
 ## Calculation actions
 
-Both actions return the original **horizontal** reference, regardless of the device's configured orientation, and do not change sensors or lights. Use `response_variable` when calling them from an automation or script. They cannot be called as synchronous Jinja functions.
+Both actions require a Daylight device and use its configured tilt and facing direction. They do not change sensors or lights. Use `response_variable` when calling them from an automation or script. They cannot be called as synchronous Jinja functions. An existing automation that calls either action must add `device_id`.
 
 ```yaml
 - action: daylight.from_elevation
   data:
+    device_id: "<daylight-device-id>"
     geometric_elevation: 20
   response_variable: daylight_result
 ```
@@ -53,13 +54,14 @@ Both actions return the original **horizontal** reference, regardless of the dev
 ```yaml
 - action: daylight.from_level
   data:
+    device_id: "<daylight-device-id>"
     daylight_level: 0.35
   response_variable: daylight_result
 ```
 
 Read `daylight_result.lux`, `daylight_result.melanopic_edi`, and `daylight_result.cct_kelvin` in subsequent templates. CCT may be null: check it before passing a value to a lamp. Melanopic EDI is independent of CCT and may remain available when CCT is null. Between -18° and -10°, melanopic EDI is null with `melanopic_edi_reason: outside_numerically_resolved_table`; at or below -18° it is zero with `no_solar_reference`. Actions also return geometry, XYZ, xy, Duv, quality, and model metadata.
 
-`from_level` optionally accepts `noon_elevation` to make the calculation independent of today's location/date. Otherwise it computes today's value from HA's configuration.
+`from_level` optionally accepts `noon_elevation` to make the level-to-elevation mapping independent of today's location/date. Otherwise it computes today's value from HA's configuration. Both actions optionally accept `solar_azimuth` in degrees clockwise from north (0° north, 90° east, 180° south, 270° west). If omitted, they use the sun's **current** azimuth at Home Assistant's location. Supply an explicit azimuth when evaluating a hypothetical elevation or level for a fixed-facing receiver; an elevation or level alone does not determine whether the sun is east or west. The response includes the azimuth used. Horizontal and follow-the-sun receivers do not depend on the supplied azimuth for their calculated light levels.
 
 The level mapping is:
 
@@ -67,7 +69,7 @@ The level mapping is:
 elevation = -18° + level × (max(-18°, noon_elevation) + 18°)
 ```
 
-A level of 0 is the dark reference, 1 is today's solar noon, and intermediate values are linear in geometric elevation—not lux or perceived brightness. In polar night when solar noon is below -18°, every level maps to the dark reference. Current level is clamped to [0, 1]. The physical lookup uses a fixed atmosphere and 1 AU solar normalization, so matching morning/evening elevations give matching results.
+A level of 0 is the dark reference, 1 is today's solar noon, and intermediate values are linear in geometric elevation—not lux or perceived brightness. In polar night when solar noon is below -18°, every level maps to the dark reference. Current level is clamped to [0, 1]. The physical lookup uses a fixed atmosphere and 1 AU solar normalization. Matching morning/evening elevations give matching results on a horizontal or sun-following receiver; a fixed-facing tilted receiver can differ as the solar azimuth changes.
 
 The actions reject nonfinite or out-of-range inputs.
 

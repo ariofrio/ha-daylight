@@ -11,11 +11,12 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, NAME
-from .model import from_elevation, from_level, load_table, number
+from .model import from_level, load_table, number
 from .orientation import _direct_nodes, load_directional_table, oriented_daylight, validate_options
 from .solar import solar_context
 
@@ -58,18 +59,42 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data[DOMAIN] = {"previews": {}}
     hass.http.register_view(DaylightPreviewView(hass.data[DOMAIN]["previews"]))
 
+    def receiver_options(call):
+        _, entry = dr.async_get_device_and_config_entry_for_domain(
+            hass, call.data["device_id"], domain=DOMAIN
+        )
+        if entry is None:
+            raise ServiceValidationError("Select a Daylight device")
+        return validate_options(entry.options)
+
     async def calculate_elevation(call: ServiceCall) -> dict:
         try:
-            return from_elevation(call.data["geometric_elevation"])
+            options = receiver_options(call)
+            azimuth = call.data.get("solar_azimuth")
+            if azimuth is None:
+                azimuth = current_context(hass)["solar_azimuth"]
+            return {
+                **oriented_daylight(call.data["geometric_elevation"], azimuth, **options),
+                "solar_azimuth": azimuth,
+            }
         except ValueError as err:
             raise ServiceValidationError(str(err)) from err
 
     async def calculate_level(call: ServiceCall) -> dict:
         try:
+            options = receiver_options(call)
+            context = current_context(hass)
             peak = call.data.get("noon_elevation")
             if peak is None:
-                peak = current_context(hass)["noon_elevation"]
-            return from_level(call.data["daylight_level"], peak)
+                peak = context["noon_elevation"]
+            reference = from_level(call.data["daylight_level"], peak)
+            azimuth = call.data.get("solar_azimuth", context["solar_azimuth"])
+            return {
+                **oriented_daylight(reference["geometric_elevation"], azimuth, **options),
+                "daylight_level": reference["daylight_level"],
+                "noon_elevation": reference["noon_elevation"],
+                "solar_azimuth": azimuth,
+            }
         except ValueError as err:
             raise ServiceValidationError(str(err)) from err
 
@@ -87,7 +112,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         "from_elevation",
         calculate_elevation,
         schema=vol.Schema(
-            {vol.Required("geometric_elevation"): numeric_input("geometric_elevation", -90, 90)}
+            {
+                vol.Required("device_id"): cv.string,
+                vol.Required("geometric_elevation"): numeric_input("geometric_elevation", -90, 90),
+                vol.Optional("solar_azimuth"): numeric_input("solar_azimuth", 0, 360),
+            }
         ),
         supports_response=SupportsResponse.ONLY,
     )
@@ -97,8 +126,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         calculate_level,
         schema=vol.Schema(
             {
+                vol.Required("device_id"): cv.string,
                 vol.Required("daylight_level"): numeric_input("daylight_level", 0, 1),
                 vol.Optional("noon_elevation"): numeric_input("noon_elevation", -90, 90),
+                vol.Optional("solar_azimuth"): numeric_input("solar_azimuth", 0, 360),
             }
         ),
         supports_response=SupportsResponse.ONLY,

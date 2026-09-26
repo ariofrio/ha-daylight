@@ -3,6 +3,7 @@
 import pytest
 import voluptuous as vol
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 
@@ -14,8 +15,17 @@ async def setup_entry(hass):
     return entry
 
 
+def device_id(hass, entry):
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        ("daylight", entry.entry_id), entry.entry_id
+    )
+    assert device is not None
+    return device.id
+
+
 async def test_melanopic_sensor_and_actions_expose_the_same_unscaled_reference(hass):
-    await setup_entry(hass)
+    entry = await setup_entry(hass)
+    selected = device_id(hass, entry)
     sensor = hass.states.get("sensor.daylight_melanopic_edi")
     assert sensor is not None
     assert sensor.attributes["unit_of_measurement"] == "lx"
@@ -23,14 +33,14 @@ async def test_melanopic_sensor_and_actions_expose_the_same_unscaled_reference(h
     a = await hass.services.async_call(
         "daylight",
         "from_elevation",
-        {"geometric_elevation": 0},
+        {"device_id": selected, "geometric_elevation": 0},
         blocking=True,
         return_response=True,
     )
     b = await hass.services.async_call(
         "daylight",
         "from_level",
-        {"daylight_level": 1, "noon_elevation": 0},
+        {"device_id": selected, "daylight_level": 1, "noon_elevation": 0},
         blocking=True,
         return_response=True,
     )
@@ -59,19 +69,20 @@ async def test_melanopic_sensor_distinguishes_unresolved_twilight_from_night(
 
 
 async def test_actions_return_independent_results_without_changing_sensors(hass):
-    await setup_entry(hass)
+    entry = await setup_entry(hass)
+    selected = device_id(hass, entry)
     before = {s.entity_id: s.state for s in hass.states.async_all("sensor")}
     a = await hass.services.async_call(
         "daylight",
         "from_elevation",
-        {"geometric_elevation": 20},
+        {"device_id": selected, "geometric_elevation": 20},
         blocking=True,
         return_response=True,
     )
     b = await hass.services.async_call(
         "daylight",
         "from_level",
-        {"daylight_level": 1, "noon_elevation": 20},
+        {"device_id": selected, "daylight_level": 1, "noon_elevation": 20},
         blocking=True,
         return_response=True,
     )
@@ -80,8 +91,85 @@ async def test_actions_return_independent_results_without_changing_sensors(hass)
     assert {s.entity_id: s.state for s in hass.states.async_all("sensor")} == before
     with pytest.raises((ServiceValidationError, vol.Invalid)):
         await hass.services.async_call(
-            "daylight", "from_level", {"daylight_level": 2}, blocking=True, return_response=True
+            "daylight",
+            "from_level",
+            {"device_id": selected, "daylight_level": 2},
+            blocking=True,
+            return_response=True,
         )
+
+
+async def test_actions_use_selected_receiver_and_explicit_azimuth(hass):
+    horizontal = await setup_entry(hass)
+    east = MockConfigEntry(
+        domain="daylight",
+        title="East window",
+        data={},
+        options={"tilt": 90, "facing_mode": "fixed", "bearing": 90},
+    )
+    east.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(east.entry_id)
+    await hass.async_block_till_done()
+    horizontal_id = device_id(hass, horizontal)
+    east_id = device_id(hass, east)
+
+    async def calculate(action, data):
+        return await hass.services.async_call(
+            "daylight", action, data, blocking=True, return_response=True
+        )
+
+    morning = await calculate(
+        "from_elevation",
+        {"device_id": east_id, "geometric_elevation": 20, "solar_azimuth": 90},
+    )
+    evening = await calculate(
+        "from_elevation",
+        {"device_id": east_id, "geometric_elevation": 20, "solar_azimuth": 270},
+    )
+    flat = await calculate(
+        "from_elevation",
+        {"device_id": horizontal_id, "geometric_elevation": 20, "solar_azimuth": 90},
+    )
+    assert morning["lux"] > evening["lux"]
+    assert morning["receiver_tilt"] == 90
+    assert morning["receiver_bearing"] == 90
+    assert flat["receiver_tilt"] == 0
+    assert flat["lux"] != pytest.approx(morning["lux"])
+
+    level = await calculate(
+        "from_level",
+        {"device_id": east_id, "daylight_level": 1, "noon_elevation": 20, "solar_azimuth": 90},
+    )
+    assert level["lux"] == pytest.approx(morning["lux"])
+    assert level["daylight_level"] == 1
+    assert level["noon_elevation"] == 20
+
+
+async def test_actions_default_to_current_azimuth_and_reject_missing_or_unknown_device(hass):
+    entry = await setup_entry(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={"tilt": 90, "facing_mode": "fixed", "bearing": 90}
+    )
+    await hass.async_block_till_done()
+    selected = device_id(hass, entry)
+    current = entry.runtime_data.data
+    result = await hass.services.async_call(
+        "daylight",
+        "from_elevation",
+        {"device_id": selected, "geometric_elevation": current["geometric_elevation"]},
+        blocking=True,
+        return_response=True,
+    )
+    assert result["lux"] == pytest.approx(current["lux"])
+    assert result["solar_azimuth"] == pytest.approx(current["solar_azimuth"], abs=0.1)
+    for data in (
+        {"geometric_elevation": 20},
+        {"device_id": "nonexistent", "geometric_elevation": 20},
+    ):
+        with pytest.raises((ServiceValidationError, vol.Invalid)):
+            await hass.services.async_call(
+                "daylight", "from_elevation", data, blocking=True, return_response=True
+            )
 
 
 async def test_multiple_receiving_surfaces_can_be_configured(hass):
@@ -111,17 +199,26 @@ async def test_config_flow_without_yaml_or_credentials(hass):
 
 
 async def test_default_level_uses_todays_noon_and_rejects_boolean(hass):
-    await setup_entry(hass)
+    entry = await setup_entry(hass)
+    selected = device_id(hass, entry)
     peak = next(
         s for s in hass.states.async_all("sensor") if s.entity_id.endswith("_noon_solar_elevation")
     )
     a = await hass.services.async_call(
-        "daylight", "from_level", {"daylight_level": 1}, blocking=True, return_response=True
+        "daylight",
+        "from_level",
+        {"device_id": selected, "daylight_level": 1},
+        blocking=True,
+        return_response=True,
     )
     assert a["geometric_elevation"] == pytest.approx(float(peak.state))
     with pytest.raises((ServiceValidationError, vol.Invalid)):
         await hass.services.async_call(
-            "daylight", "from_level", {"daylight_level": True}, blocking=True, return_response=True
+            "daylight",
+            "from_level",
+            {"device_id": selected, "daylight_level": True},
+            blocking=True,
+            return_response=True,
         )
 
 
