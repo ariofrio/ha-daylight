@@ -18,12 +18,12 @@ Manual installation: copy `custom_components/daylight/` into the same location i
 
 ## Current reference
 
-Setup creates one device with six sensors, updated together every minute using HA's configured latitude, longitude, and time zone:
+Each setup creates one named device with six sensors, updated together every minute using HA's configured latitude, longitude, and time zone. Add Daylight again to create another independently configured receiving surface. The initial receiving surface is horizontal:
 
 | Sensor | Value |
 |---|---|
-| Daylight illuminance | Clear-sky, horizontal solar illuminance in lux |
-| Daylight melanopic EDI | Unscaled, clear-sky horizontal melanopic equivalent daylight illuminance in lux (CIE S 026 / D65) |
+| Daylight illuminance | Clear-sky illuminance on the configured receiving surface, in lux |
+| Daylight melanopic EDI | Unscaled, clear-sky melanopic equivalent daylight illuminance on that surface, in lux (CIE S 026 / D65) |
 | Daylight color temperature | CCT in kelvin, or unknown when a useful CCT cannot be reported |
 | Daylight level | Normalized elevation from 0 to 1 |
 | Daylight geometric solar elevation | Solar-center elevation without refraction, in degrees |
@@ -31,13 +31,22 @@ Setup creates one device with six sensors, updated together every minute using H
 
 Entity IDs are assigned by HA and can be renamed. The illuminance sensor also exposes XYZ, xy chromaticity, and Duv attributes. Sensors expose the model identifier, quality, and reason for missing CCT. The melanopic EDI sensor exposes `melanopic_edi_reason` and `relative_melanopic_spread` (a paired-simulation diagnostic, not an accuracy bound). Its unit is lx, but it is a distinct spectral metric from ordinary illuminance. No indoor multiplier, lamp calibration, or scheduling is applied. This is an outdoor solar reference, not measured room brightness.
 
+## Configure the receiving surface
+
+Open **Settings → Devices & services → Daylight → Configure** for the device you want to adjust. One form contains tilt (0° horizontal to 90° vertical), facing mode (fixed bearing or follow the sun), and compass bearing (0° north, 90° east, 180° south, 270° west). Bearing is ignored in follow-sun mode. Continue to see a static full-day preview of illuminance, melanopic EDI, and CCT for the unsaved settings. Choose **Save settings** to apply the values or **Back to settings** to revise them. Saving updates that device's existing sensor entities without resetting their history.
+
+All tilts use one receiving-plane calculation: direct sunlight follows its incidence angle, and diffuse sky plus ground light comes from the fixed-atmosphere directional spectral reference. The horizontal result is its 0° case. Values between simulated directions are interpolated and remain clear-sky **estimates**; the preview and live sensors use the same model. The sensors expose `receiver_tilt`, `receiver_facing_mode`, `receiver_bearing`, and `orientation_model` attributes so a change in their history can be interpreted. The [model documentation](docs/model.md#tilted-receiving-surfaces) details the calculation and limits.
+
+The Configure dialog has a generated image, so it updates after continuing to the review step, not while dragging a slider. Its signed image URL expires after 15 minutes; return to the first step and preview again if needed.
+
 ## Calculation actions
 
-Both actions return a mapping and do not change sensors or lights. Use `response_variable` when calling them from an automation or script. They cannot be called as synchronous Jinja functions; the Python calculation is shared by actions and sensors.
+Both actions require a Daylight device and use its configured tilt and facing direction. They do not change sensors or lights. Use `response_variable` when calling them from an automation or script. They cannot be called as synchronous Jinja functions. An existing automation that calls either action must add `device_id`.
 
 ```yaml
 - action: daylight.from_elevation
   data:
+    device_id: "<daylight-device-id>"
     geometric_elevation: 20
   response_variable: daylight_result
 ```
@@ -45,13 +54,14 @@ Both actions return a mapping and do not change sensors or lights. Use `response
 ```yaml
 - action: daylight.from_level
   data:
+    device_id: "<daylight-device-id>"
     daylight_level: 0.35
   response_variable: daylight_result
 ```
 
 Read `daylight_result.lux`, `daylight_result.melanopic_edi`, and `daylight_result.cct_kelvin` in subsequent templates. CCT may be null: check it before passing a value to a lamp. Melanopic EDI is independent of CCT and may remain available when CCT is null. Between -18° and -10°, melanopic EDI is null with `melanopic_edi_reason: outside_numerically_resolved_table`; at or below -18° it is zero with `no_solar_reference`. Actions also return geometry, XYZ, xy, Duv, quality, and model metadata.
 
-`from_level` optionally accepts `noon_elevation` to make the calculation independent of today's location/date. Otherwise it computes today's value from HA's configuration.
+`from_level` optionally accepts `noon_elevation` to make the level-to-elevation mapping independent of today's location/date. Otherwise it computes today's value from HA's configuration. Both actions optionally accept `solar_azimuth` in degrees clockwise from north (0° north, 90° east, 180° south, 270° west). If omitted, they use the sun's **current** azimuth at Home Assistant's location. Supply an explicit azimuth when evaluating a hypothetical elevation or level for a fixed-facing receiver; an elevation or level alone does not determine whether the sun is east or west. The response includes the azimuth used. Horizontal and follow-the-sun receivers do not depend on the supplied azimuth for their calculated light levels.
 
 The level mapping is:
 
@@ -59,7 +69,7 @@ The level mapping is:
 elevation = -18° + level × (max(-18°, noon_elevation) + 18°)
 ```
 
-A level of 0 is the dark reference, 1 is today's solar noon, and intermediate values are linear in geometric elevation—not lux or perceived brightness. In polar night when solar noon is below -18°, every level maps to the dark reference. Current level is clamped to [0, 1]. The physical lookup uses a fixed atmosphere and 1 AU solar normalization, so matching morning/evening elevations give matching results.
+A level of 0 is the dark reference, 1 is today's solar noon, and intermediate values are linear in geometric elevation—not lux or perceived brightness. In polar night when solar noon is below -18°, every level maps to the dark reference. Current level is clamped to [0, 1]. The physical lookup uses a fixed atmosphere and 1 AU solar normalization. Matching morning/evening elevations give matching results on a horizontal or sun-following receiver; a fixed-facing tilted receiver can differ as the solar azimuth changes.
 
 The actions reject nonfinite or out-of-range inputs.
 

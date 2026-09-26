@@ -4,7 +4,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from astral import Observer
-from astral.sun import elevation, noon
+from astral.sun import azimuth, elevation, noon
 
 from .model import level_from_elevation
 
@@ -17,6 +17,7 @@ def solar_context(latitude: float, longitude: float, timezone: str, when: dateti
     peak = elevation(observer, transit, with_refraction=False)
     return {
         "geometric_elevation": current,
+        "solar_azimuth": azimuth(observer, when),
         "noon_elevation": peak,
         "daylight_level": level_from_elevation(current, peak),
         "solar_noon": transit.isoformat(),

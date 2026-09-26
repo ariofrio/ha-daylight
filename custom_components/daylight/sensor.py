@@ -9,7 +9,7 @@ from homeassistant.components.sensor import (
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, NAME, VERSION
+from .const import DOMAIN, VERSION
 
 SENSORS = (
     SensorEntityDescription(
@@ -65,19 +65,21 @@ SENSORS = (
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    async_add_entities(DaylightSensor(entry.runtime_data, entry.entry_id, desc) for desc in SENSORS)
+    async_add_entities(
+        DaylightSensor(entry.runtime_data, entry.entry_id, entry.title, desc) for desc in SENSORS
+    )
 
 
 class DaylightSensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, entry_id, description):
+    def __init__(self, coordinator, entry_id, entry_title, description):
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry_id}_{description.key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
-            name=NAME,
+            name=entry_title,
             entry_type=DeviceEntryType.SERVICE,
             manufacturer="Daylight",
             model="Fixed-atmosphere solar reference",
@@ -93,6 +95,13 @@ class DaylightSensor(CoordinatorEntity, SensorEntity):
         data = self.coordinator.data
         keys = ("model", "quality", "cct_reason", "relative_lux_spread", "uv_spread")
         attrs = {key: data[key] for key in keys}
+        if self.entity_description.key in ("lux", "melanopic_edi", "cct_kelvin"):
+            attrs.update(
+                receiver_tilt=data["receiver_tilt"],
+                receiver_facing_mode=data["receiver_facing_mode"],
+                receiver_bearing=data["receiver_bearing"],
+                orientation_model=data["orientation_model"],
+            )
         if self.entity_description.key == "lux":
             attrs.update(xy=data["xy"], xyz=data["xyz"], duv=data["duv"])
         if self.entity_description.key == "melanopic_edi":
